@@ -18,6 +18,20 @@ f_instruct "$INSTRUCT_F"
 echo ""
 f_enter_to_cont
 
+# NOTE: Revome resíduos do "script" em caso de falha e/ou na finalização. By Questor
+USR_CREDENT_FL=""
+rm_residues() {
+    rm -f "$USR_CREDENT_FL"
+    rm -rf "$(pwd)_not_master_diffs"
+    rm -rf "$(pwd)_ours_master"
+    rm -rf "$(pwd)_master"
+
+    # NOTE: Kill "residual" process from that script. By Questor
+    pkill -P $$
+
+}
+trap "rm_residues" EXIT HUP INT QUIT TERM STOP PWR
+
 # NOTE: Verifica se a pasta atual é um repositório git válido. By Questor
 f_chk_for_repo() {
     f_chk_fd_fl ".git" "d"
@@ -41,13 +55,11 @@ f_chk_for_meld() {
 # NOTE: To debug. By Questor
 # USR_CREDENTIALS="https://eduardolucioac:3M%40nu3773@gitlab.com/lbss/lbrad.git"
 
-USR_CREDENT_FL=""
 USR_CREDENTIALS=""
 f_usr_credent_fl() {
     # https://stackoverflow.com/a/41555893/3223785
     USR_CREDENT_FL=$(mktemp -t tmp.XXXXXX)
     echo "$USR_CREDENTIALS" > "$USR_CREDENT_FL"
-    trap "rm -f $USR_CREDENT_FL" EXIT HUP INT QUIT TERM STOP PWR
 }
 
 # NOTE: Obtêm usuário e senha do git para aumentar a automatização do processo. By Questor
@@ -96,42 +108,40 @@ f_repo_backup() {
     fi
 }
 
+# NOTE: Executa o comando "pull", ou seja, atualiza e faz merge com o "branch" definido. 
+# By Questor
 f_git_pull_changes() {
     BRANCH_NAME=$1
     f_div_section
-    f_yes_no "Pull (\"$BRANCH_NAME\") branch?"
+    f_yes_no "Pull \"$BRANCH_NAME\" branch?"
     if [ ${YES_NO_R} -eq 1 ] ; then
-
-        # NOTE: Executa o comando "pull", ou seja, atualiza e faz merge com o repositório. 
-        # By Questor
         f_get_stderr_stdout "git -c credential.helper=\"store --file=$USR_CREDENT_FL\" pull origin $BRANCH_NAME"
         if [[ $F_GET_STOUTERR == *"fatal: "* ]] || [[ $F_GET_STOUTERR == *"error: "* ]] ; then
             f_enter_to_cont "$F_GET_STOUTERR"
             f_error_exit
         fi
         echo "$F_GET_STOUTERR"
-
     fi
 }
 
+# NOTE: Executa o comando "push", ou seja, envia modificações "commitadas" para o 
+# "branch" definido. By Questor
 f_git_push_changes() {
     BRANCH_NAME=$1
     f_div_section
-    f_yes_no "Push (\"$BRANCH_NAME\") branch?"
+    f_yes_no "Push \"$BRANCH_NAME\" branch?"
     if [ ${YES_NO_R} -eq 1 ] ; then
-
-        # NOTE: Executa o comando "push", ou seja, envia modificações "commitadas" 
-        # para o repositório. By Questor
         f_get_stderr_stdout "git -c credential.helper=\"store --file=$USR_CREDENT_FL\" push origin $BRANCH_NAME"
         if [[ $F_GET_STOUTERR == *"fatal: "* ]] || [[ $F_GET_STOUTERR == *"error: "* ]] ; then
             f_enter_to_cont "$F_GET_STOUTERR"
             f_error_exit
         fi
         echo "$F_GET_STOUTERR"
-
     fi
 }
 
+# NOTE: Traz modificações diversas do repositório entretanto sem "consolidar" dados. 
+# By Questor
 f_repo_fecth_all() {
     f_get_stderr_stdout "git -c credential.helper=\"store --file=$USR_CREDENT_FL\" fetch --all"
     if [[ $F_GET_STOUTERR == *"fatal: "* ]] || [[ $F_GET_STOUTERR == *"error: "* ]] ; then
@@ -141,11 +151,13 @@ f_repo_fecth_all() {
     echo "$F_GET_STOUTERR"
 }
 
+# NOTE: Trata o "branch" "master" caso hajam modificações no mesmo antes de iniciar 
+# o processo dxe "merge". By Questor
 f_handle_master() {
 
     # https://unix.stackexchange.com/a/155077/61742
     f_div_section
-    echo "Checkout to master"
+    echo "Checkout to \"master\" branch"
     f_get_stderr_stdout "git checkout master"
     if [[ $F_GET_STOUTERR == *"fatal: "* ]] || [[ $F_GET_STOUTERR == *"error: "* ]] ; then
         f_enter_to_cont "$F_GET_STOUTERR"
@@ -165,7 +177,7 @@ Handle these modifications?"
             git reset --hard origin/master
 
             f_div_section
-            echo "TIP: Your changes o branch \"master\" will be on the LEFT!
+            echo "TIP: Your changes o \"master\" branch will be on the LEFT!
 WARNING: CHANGES ON LEFT WILL BE IGNORED!"
             f_div_section
 
@@ -194,11 +206,14 @@ WARNING: CHANGES ON LEFT WILL BE IGNORED!"
     else
         f_git_pull_changes "master"
     fi
-
 }
 
 BRANCHES_ARR=()
 BRANCHES_OPT_ARR=()
+
+# NOTE: Traz uma lista de todos os "branches" disponíveis no repositório remoto (depende 
+# do comando `git fetch --all`). Adicionalmente gera uma lista de opções para facilitar 
+# o uso. By Questor
 f_branches_list() {
 
     # NOTE: To debug. By Questor
@@ -232,17 +247,20 @@ f_branches_list() {
 }
 
 NOT_MASTER_BRANCH=""
+
+# NOTE: Cria o "branch" escolhido e o coloca em sincronia com a sua contraparte remota. 
+# Toma outras ações caso o "branch" já exista de forma garantir integridade. By Questor
 f_choose_not_master_branch() {
     f_branches_list
     f_div_section
-    f_get_usr_input_mult "Choose the name of the branch that will be merged with the master branch.
-WARNING: The master branch will be OVERWRITTEN with these changes!" BRANCHES_OPT_ARR[@]
+    f_get_usr_input_mult "Choose the name of the branch that will be merged with the \"master\" branch.
+WARNING: The \"master\" branch will be OVERWRITTEN with these changes!" BRANCHES_OPT_ARR[@]
     NOT_MASTER_BRANCH="$GET_USR_INPUT_MULT_V_R"
     if [[ -z $(git show-ref refs/heads/$NOT_MASTER_BRANCH) ]]; then
 
         # https://www.reddit.com/r/git/comments/8wshx0/cant_get_git_checkout_t_originfeature_to_work/e1y1iu3?utm_source=share&utm_medium=web2x
         f_div_section
-        echo "Cretate $NOT_MASTER_BRANCH branch and checkout to it"
+        echo "Cretate \"$NOT_MASTER_BRANCH\" branch and checkout to it"
         f_get_stderr_stdout "git -c credential.helper=\"store --file=$USR_CREDENT_FL\" checkout -b $NOT_MASTER_BRANCH origin/$NOT_MASTER_BRANCH"
         if [[ $F_GET_STOUTERR == *"fatal: "* ]] || [[ $F_GET_STOUTERR == *"error: "* ]] ; then
             f_enter_to_cont "$F_GET_STOUTERR"
@@ -266,12 +284,12 @@ WARNING: The master branch will be OVERWRITTEN with these changes!" BRANCHES_OPT
             fi
         done
         if [ ${UP_TO_TRACK_REMOTE} -eq 0 ] ; then
-            f_enter_to_cont "ERROR: Branch \"$NOT_MASTER_BRANCH\" IS NOT set up to track remote branch \"$NOT_MASTER_BRANCH\" from \"origin\"."
+            f_enter_to_cont "ERROR: The \"$NOT_MASTER_BRANCH\" branch IS NOT set up to track \"$NOT_MASTER_BRANCH\" remote branch from \"origin\"."
             f_error_exit
         fi
 
         f_div_section
-        echo "Checkout to $NOT_MASTER_BRANCH"
+        echo "Checkout to \"$NOT_MASTER_BRANCH\" branch"
         f_get_stderr_stdout "git checkout $NOT_MASTER_BRANCH"
         if [[ $F_GET_STOUTERR == *"fatal: "* ]] || [[ $F_GET_STOUTERR == *"error: "* ]] ; then
             f_enter_to_cont "$F_GET_STOUTERR"
@@ -284,17 +302,42 @@ WARNING: The master branch will be OVERWRITTEN with these changes!" BRANCHES_OPT
     fi
 }
 
+DIFFTOOL_PID=""
+# NOTE: . By Questor
+f_master_to_not_master_diffs() {
+    f_div_section
+    echo " - [ MELD SHOWING THE DIFFS ] - 
+TIP: The \"$NOT_MASTER_BRANCH\" branch will be on the RIGHT and the \"merge-base master\" branch on the LEFT!
+NOTE: DIFFS FROM POINT AT WHICH \"$NOT_MASTER_BRANCH\" BRANCH FORKED FROM \"master\" BRANCH!
+WARNING: DON'T TOUCH ANYTHING!"
+    # https://stackoverflow.com/a/34279699/3223785
+    f_div_section
+
+    # NOTE: Faz uma cópia do repositório atual para exibir as diferenças. By Questor
+    cp -ar "$(pwd)" "$(pwd)_not_master_diffs"
+
+    # NOTE: When you use three dots, git difftool finds the merge-base between the 
+    # left and right side commit SHA-1s (as obtained from the names, or defaulting 
+    # to HEAD) and substitutes that in for the left-side SHA-1. The right-side SHA-1 
+    # (as resolved from the name) remains intact. By torek
+    cd "$(pwd)_not_master_diffs"
+    git difftool --dir-diff master...$NOT_MASTER_BRANCH 2> /dev/null 1> /dev/null &
+    DIFFTOOL_PID=$(echo $!)
+    cd -
+
+}
+
+# NOTE: Faz o "merge" do branch "master" com o "não master". By Questor
 f_merge_master_n_not_master() {
 
     # NOTE: Faz uma cópia do repositório atual para iniciar o processo de merge. By Questor
-    # cp -avr "$(pwd)" "$(pwd)_master"
     cp -ar "$(pwd)" "$(pwd)_master"
 
     # NOTE: Coloca o repositório de comparação no branch master. By Questor
     cd "$(pwd)_master"
 
     f_div_section
-    echo "Checkout to master"
+    echo "Checkout to \"master\" branch"
     f_get_stderr_stdout "git checkout master"
     if [[ $F_GET_STOUTERR == *"fatal: "* ]] || [[ $F_GET_STOUTERR == *"error: "* ]] ; then
         f_enter_to_cont "$F_GET_STOUTERR"
@@ -305,11 +348,18 @@ f_merge_master_n_not_master() {
     cd -
 
     f_div_section
-    echo "TIP: The branch \"$NOT_MASTER_BRANCH\" will be on the RIGHT and \"master\" on the LEFT!
+    echo " - [ MELD TO MERGE THE DIFFS ] - 
+TIP: The \"$NOT_MASTER_BRANCH\" branch will be on the RIGHT and \"master\" branch on the LEFT!
 WARNING: CHANGES ON LEFT WILL BE IGNORED!"
     f_div_section
 
     meld "$(pwd)_master" "$(pwd)" 2> /dev/null 1> /dev/null
+
+    # NOTE: Kill meld instance with diffs. By Questor
+    kill -- -$DIFFTOOL_PID
+
+    # # NOTE: Kill diff window. By Questor
+    # pkill -f "meld"
 
     # NOTE: Remove a cópia do repositório no branch setado. By Questor
     rm -rf "$(pwd)_master"
@@ -326,10 +376,11 @@ WARNING: CHANGES ON LEFT WILL BE IGNORED!"
 
 }
 
+# NOTE: Faz o "merge" do branch "não master" com o "master". By Questor
 f_merge_not_master_n_master() {
 
     f_div_section
-    echo "Checkout to master"
+    echo "Checkout to \"master\" branch"
     f_get_stderr_stdout "git checkout master"
     if [[ $F_GET_STOUTERR == *"fatal: "* ]] || [[ $F_GET_STOUTERR == *"error: "* ]] ; then
         f_enter_to_cont "$F_GET_STOUTERR"
@@ -338,13 +389,15 @@ f_merge_not_master_n_master() {
     echo "$F_GET_STOUTERR"
 
     f_div_section
-    f_yes_no "Merge with master branch?"
+    f_yes_no "Merge with \"master\" branch?"
     if [ ${YES_NO_R} -eq 1 ] ; then
         git merge $NOT_MASTER_BRANCH
     fi
 
 }
 
+# NOTE: Deleta o branch "não master" escolhido remotamente e localmente. Adicionalmente
+# remove outros "branches" desnecessários. By Questor
 f_delete_merged_not_master() {
 
     f_div_section
@@ -377,6 +430,7 @@ NOTE: Additionally will delete multiple obsolete tracking branches."
 
 }
 
+# NOTE: Área de execução do "script". By Questor
 # EXEC >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
 f_chk_for_repo
@@ -390,6 +444,8 @@ f_handle_master
 
 # >>>>> checkout "not_master"
 f_choose_not_master_branch
+
+f_master_to_not_master_diffs
 
 f_merge_master_n_not_master
 
