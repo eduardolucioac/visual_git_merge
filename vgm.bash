@@ -12,7 +12,7 @@ EOF
 
 # NOTE: Mensagem de "commit" de merge do branch "master" com o branch "não master". By Questor
 MASTER_TO_NOT_M='Merge do branch \"master\" no branch \"$NOT_MASTER_BRANCH\". By Questor'
-NOT_M_TO_MASTER='Merge do branch \"$NOT_MASTER_BRANCH\" no branch \"master\". By Questor'
+# NOT_M_TO_MASTER='Merge do branch \"$NOT_MASTER_BRANCH\" no branch \"master\". By Questor'
 
 f_instruct "$INSTRUCT_F"
 echo ""
@@ -41,12 +41,34 @@ f_chk_for_repo() {
     fi
 }
 
+# NOTE: Seta o "meld" como a ferramenta de "merge" e "diff" se a mesma já não estiver 
+# setada. By Questor
+f_chk_for_meld_on_git() {
+    # https://stackoverflow.com/a/45745509/3223785
+    if [[ $(git config --get-regex diff.tool) != *"meld"* ]] || 
+            [[ $(git config --get-regex merge.tool) != *"meld"* ]] ; then
+
+        # NOTE: Seta o "meld" como a ferramenta de "merge" e "diff". By Questor
+        f_div_section
+        f_yes_no "Set \"meld\" as merge and diff git tool?"
+        if [ ${YES_NO_R} -eq 1 ] ; then
+            git config --global diff.tool meld
+            git config --global merge.tool meld
+        else
+            f_enter_to_cont "ERROR: This script is designed to use \"meld\" as diff and merge git tool!
+( https://meldmerge.org/ )"
+            f_error_exit
+        fi
+
+    fi
+}
+
 # NOTE: Verifica se o "meld" está presente. By Questor
 f_chk_for_meld() {
     # https://stackoverflow.com/a/677212/3223785
     # https://askubuntu.com/a/445473/134723
     if ! [ -x "$(command -v meld)" ]; then
-        f_enter_to_cont "ERROR: Meld visual diff and merge tool is not present!
+        f_enter_to_cont "ERROR: This script is designed to use \"meld\" as diff and merge git tool and it is not present!
 ( https://meldmerge.org/ )"
         f_error_exit
     fi
@@ -435,6 +457,7 @@ NOTE: Additionally will delete multiple obsolete tracking branches."
 
 f_chk_for_repo
 f_chk_for_meld
+f_chk_for_meld_on_git
 f_get_usr_credent
 f_repo_backup 1
 f_repo_fecth_all
