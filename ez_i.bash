@@ -723,19 +723,18 @@ F_GET_STDERR_R=""
 F_GET_STDOUT_R=""
 F_GET_EXIT_CODE_R=0
 f_get_stderr_stdout() {
-    : 'Executar um comando e capturar a saída de stderr, stdout e 
-    o "exit code". 
+    : 'Run a command and capture output from stderr, stdout and exit code
 
     Args:
-        CMD_TO_EXEC (str): Comando a ser executado.
+        CMD_TO_EXEC (str): Command to be executed.
 
     Returns:
-        F_GET_STDERR_R (str): Saída para stderr.
-        F_GET_STDOUT_R (str): Saída para stdout.
-        F_GET_EXIT_CODE_R (int): Código de saída.
-        F_GET_STOUTERR (str): Unifica a saída para stdout e para stderr em um única
-    string nessa ordem. Útil pois alguns aplicativos costumam trocar/juntar/inverter 
-    essas saídas.
+        F_GET_STDERR_R (str): Output to stderr.
+        F_GET_STDOUT_R (str): Output to stdout.
+        F_GET_EXIT_CODE_R (int): Exit code.
+        F_GET_STOUTERR (str): Unify the output for stdout and stderr into a single 
+    string in that order. Useful as some applications often swap/merge/invert these 
+    outputs.
     '
 
     CMD_TO_EXEC=$1
@@ -756,11 +755,67 @@ f_get_stderr_stdout() {
         F_GET_STOUTERR="$F_GET_STOUTERR$USE_NEWLINE$F_GET_STDERR_R"
     fi
 
-    # NOTE: To debug. By Questor
-    # echo "F_GET_STDOUT_R: $F_GET_STDOUT_R"
-    # echo "F_GET_STDERR_R: $F_GET_STDERR_R"
-    # echo "F_GET_EXIT_CODE_R: $F_GET_EXIT_CODE_R"
+}
 
+f_log_manager() {
+    : 'Generate and manage output and error logs.
+
+    Args:
+        VALUE_TO_INSERT (str): Value to insert into log file.
+        LOG_TYPE (Optional[int]): 0 - Output log; 1 - Error log. Default 0.
+        CREATE_NEW_LOG (Optional[int]): 0 - Inserts into existing log file; 
+    1 - Creates a new log file. Default 0.
+        PATH_TO_LOG (Optional[str]): Folder path to create log file (without "/" 
+    at the end). If empty, a new log file will be created in the current folder 
+    (value in "EZ_I_DIR_V").
+        VAL_INS_ON_SCREEN (Optional[int]): 0 - Will not print "VALUE_TO_INSERT" 
+    on screen; 1 - Will print "VALUE_TO_INSERT" on screen. Default 0.
+    '
+
+    VALUE_TO_INSERT=$1
+    LOG_TYPE=$2
+    CREATE_NEW_LOG=$3
+    PATH_TO_LOG=$4
+    VAL_INS_ON_SCREEN=$5
+
+    if [ -z "$LOG_TYPE" ] ; then
+        LOG_TYPE=0
+    fi
+    if [ -z "$CREATE_NEW_LOG" ] ; then
+        CREATE_NEW_LOG=0
+    fi
+    if [ -z "$PATH_TO_LOG" ] ; then
+        PATH_TO_LOG="$EZ_I_DIR_V"
+    fi
+    if [ -z "$VAL_INS_ON_SCREEN" ] ; then
+        VAL_INS_ON_SCREEN=0
+    fi
+
+    LOG_FILE_NAME=""
+    case $LOG_TYPE in
+        0)
+            LOG_FILE_NAME="$PATH_TO_LOG/output.log"
+        ;;
+        1)
+            LOG_FILE_NAME="$PATH_TO_LOG/error.log"
+        ;;
+    esac
+
+    LOG_APPEND_OR_CREATE=""
+    case $CREATE_NEW_LOG in
+        0)
+            LOG_APPEND_OR_CREATE=">>"
+        ;;
+        1)
+            LOG_APPEND_OR_CREATE=">"
+        ;;
+    esac
+
+    if [[ ${VAL_INS_ON_SCREEN} -eq 1 ]]; then
+        echo "$VALUE_TO_INSERT"
+    fi
+
+    eval "echo \"$VALUE_TO_INSERT\" $LOG_APPEND_OR_CREATE $LOG_FILE_NAME"
 }
 
 YES_NO_R=0
